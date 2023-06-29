@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Rock Paper Scissors Game</title>
+</head>
+<body>
+    <h1>Rock Paper Scissors Game</h1>
+
+    {% if error %}
+    <p>{{ error }}</p>
+    {% endif %}
+
+    {% if result %}
+    <p>{{ result }}</p>
+    {% endif %}
+
+    <form method="POST" action="/">
+        <label for="choice">Enter your choice (rock, paper, or scissors), or 'q' to quit:</label>
+        <input type="text" id="choice" name="choice" required>
+        <button type="submit">Submit</button>
+    </form>
+
+    <h2>Score:</h2>
+    <p>You: {{ user_wins }}</p>
+    <p>Computer: {{ computer_wins }}</p>
+    <p>Draws: {{ draws }}</p>
+</body>
+</html>
