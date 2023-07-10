@@ -2,93 +2,148 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import AceEditor from 'react-ace';
 import 'ace-builds/src-noconflict/mode-javascript';
-import 'ace-builds/src-noconflict/mode-python';
 import 'ace-builds/src-noconflict/theme-github';
 import '../styles/CodeConverter.css';
 
-const openai = require('openai');
-
-const CodeConverter = () => {
-  const [sourceCode, setSourceCode] = useState('');
-  const [targetLanguage, setTargetLanguage] = useState('');
+function App() {
+  const [code, setCode] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [targetLanguage, setTargetLanguage] = useState('Python');
   const [convertedCode, setConvertedCode] = useState('');
-  const [debugLogs, setDebugLogs] = useState('');
-  const [suggestedCode, setSuggestedCode] = useState('');
+  const [debugSuggestions, setDebugSuggestions] = useState([]);
+  const [qualityCheckResults, setQualityCheckResults] = useState("");
+  const [activeOutput, setActiveOutput] = useState('converted'); // Default to 'converted'
 
-  const handleConvertCode = async () => {
+  const targetLanguages = [
+    'Python',
+    'JavaScript',
+    'Java',
+    'C++',
+    // Add more languages as needed
+  ];
+
+  const convertCode = async () => {
+    setError(null);
+    setLoading(true);
+
     try {
-      const response = await axios.post('/api/convert', {
-        code: sourceCode,
-        sourceLanguage: 'source_language_here',
-        targetLanguage: targetLanguage,
-        debug: true,
-      });
-
+      const response = await axios.post('http://localhost:4500/api/convert', { code, targetLanguage });
       setConvertedCode(response.data.convertedCode);
-      setDebugLogs(response.data.debugLogs);
-
-      const suggestedCodeResponse = await openai.complete({
-        engine: 'davinci-codex',
-        prompt: sourceCode,
-        maxTokens: 100,
-        temperature: 0.7,
-        n: 1,
-        stop: '\n',
-      });
-
-      setSuggestedCode(suggestedCodeResponse.choices[0].text);
+      setActiveOutput('converted');
     } catch (error) {
-      console.error('Error converting code:', error);
+      setError('An error occurred while converting the code.');
+      console.error(error);
+    }
+
+    setLoading(false);
+  };
+
+  const debugCode = async () => {
+    setError(null);
+    setLoading(true);
+
+    try {
+      const response = await axios.post('http://localhost:4500/api/debug', { code });
+      console.log(response.data.convertedCode)
+      setDebugSuggestions(response.data.convertedCode);
+      setActiveOutput('debug');
+    } catch (error) {
+      setError('An error occurred while debugging the code.');
+      console.error(error);
+    }
+
+    setLoading(false);
+  };
+
+  const performQualityCheck = async () => {
+    setError(null);
+    setLoading(true);
+
+    try {
+      const response = await axios.post('http://localhost:4500/api/qualityCheck', { code });
+      console.log(response.data.convertedCode)
+      console.log(typeof(response.data.convertedCode))
+      setQualityCheckResults(response.data.convertedCode);
+      setActiveOutput('qualityCheck');
+    } catch (error) {
+      setError('An error occurred while performing quality check.');
+      console.error(error);
+    }
+
+    setLoading(false);
+  };
+
+  const renderOutput = () => {
+    switch (activeOutput) {
+      case 'converted':
+        return (
+          <textarea className="output-content" value={convertedCode} readOnly />
+        );
+      case 'debug':
+        return (
+          <pre className="output-content debug-list">
+            {debugSuggestions}
+          </pre>
+        );
+      case 'qualityCheck':
+        return (
+          <pre className="output-content quality-check-results">
+            {qualityCheckResults}
+          </pre>
+        );
+      default:
+        return null;
     }
   };
 
-  const handleCodeChange = (newCode) => {
-    setSourceCode(newCode);
-  };
-
-  const handleLanguageChange = (event) => {
-    setTargetLanguage(event.target.value);
-  };
-
   return (
-    <div className="container">
-      <div className="editor-container">
-        <AceEditor
-          mode="javascript"
-          theme="github"
-          name="code-editor"
-          value={sourceCode}
-          onChange={handleCodeChange}
-          editorProps={{ $blockScrolling: true }}
-          width="45%"
-        />
-        <div className="result-container">
-          <div className="code-pane">
-            <h3>Converted Code:</h3>
-            <pre>{convertedCode}</pre>
+    <div className="app">
+      <h1 className="app-title">Code Converter</h1>
+      <div className="app-container">
+        <div className="editor-container">
+          <div className="editor-header">
+            <select
+              className="language-select"
+              value={targetLanguage}
+              onChange={(e) => setTargetLanguage(e.target.value)}
+            >
+              {targetLanguages.map((language) => (
+                <option key={language} value={language}>
+                  {language}
+                </option>
+              ))}
+            </select>
+            <button className="convert-button" onClick={convertCode} disabled={loading}>
+              {loading ? 'Converting...' : 'Convert'}
+            </button>
+            <button className="debug-button" onClick={debugCode} disabled={loading}>
+              {loading ? 'Debugging...' : 'Debug'}
+            </button>
+            <button className="quality-check-button" onClick={performQualityCheck} disabled={loading}>
+              {loading ? 'Checking...' : 'Quality Check'}
+            </button>
           </div>
-          <div className="code-pane">
-            <h3>Suggested Code:</h3>
-            <pre>{suggestedCode}</pre>
-          </div>
+          <AceEditor
+            mode="javascript"
+            theme="github"
+            value={code}
+            onChange={setCode}
+            placeholder="Enter your code here..."
+            fontSize={16}
+            width="100%"
+            height="calc(100vh - 120px)"
+          />
         </div>
-      </div>
-      <div className="select-container">
-        <select value={targetLanguage} onChange={handleLanguageChange}>
-          <option value="">Select Target Language</option>
-          <option value="javascript">JavaScript</option>
-          <option value="python">Python</option>
-        </select>
-        <button onClick={handleConvertCode} disabled={!targetLanguage}>
-          Convert Code
-        </button>
-      </div>
-      <div className="debug-container">
-        <h3>Debug Logs:</h3>
-        <pre>{debugLogs}</pre>
+        <div className="output-container">
+          <div className="output-header">
+            <h2 className="output-title">Output</h2>
+          </div>
+          {renderOutput()}
+        </div>
       </div>
     </div>
   );
-};
+}
 
-export default CodeConverter;
+export default App;
